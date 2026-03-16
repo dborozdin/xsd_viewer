@@ -1,0 +1,13 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "xsd-viewer-core"
+version = "0.1.0"
+description = "XSD schema visualization engine — SVG diagrams in Altova XMLSpy notation"
+requires-python = ">=3.10"
+dependencies = ["lxml>=4.9.0", "svgwrite>=1.4.3"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["core"]
