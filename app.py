@@ -16,8 +16,9 @@ from core.xsd_parser import SchemaRegistry, parse_schema_with_imports
 from core.svg_renderer import (
     render_element_diagram,
     render_overview_diagram,
-    render_type_diagram,
 )
+import cairosvg
+
 from generate_doc import generate_html_for_schema
 from github_fetcher import fetch_xsd_files, parse_github_url
 
@@ -41,16 +42,13 @@ LABELS = {
         "schema_file": "Schema file",
         "viz_mode": "Visualization mode",
         "mode_element": "Element diagram",
-        "mode_type": "Type diagram",
         "mode_overview": "Overview (all elements)",
         "element": "Element",
-        "type": "Complex type",
         "depth": "Expansion depth",
         "tab_diagram": "Diagram",
         "tab_annotations": "Annotations",
         "no_files": "Upload XSD files or fetch from GitHub to get started.",
         "no_elements": "No elements found in this schema.",
-        "no_types": "No complex types found in this schema.",
         "annotation_header": "Annotations for: {name}",
         "schema_annotation": "Schema description",
         "element_annotation": "Element annotation",
@@ -58,12 +56,14 @@ LABELS = {
         "no_annotation": "No annotation available.",
         "error_fetch": "Error fetching files: {err}",
         "error_render": "Error rendering diagram: {err}",
-        "render": "Render",
         "generate_doc": "Generate HTML doc",
         "generating_doc": "Generating documentation...",
         "download_doc": "Download HTML",
         "doc_depth": "Doc depth",
         "back_to_diagram": "Back to diagrams",
+        "quick_elements": "Elements (click to view):",
+        "show_pills": "Show element pills",
+        "save_png": "Save as PNG",
     },
     "ru": {
         "title": "Просмотр XSD-схем",
@@ -82,16 +82,13 @@ LABELS = {
         "schema_file": "Файл схемы",
         "viz_mode": "Режим визуализации",
         "mode_element": "Диаграмма элемента",
-        "mode_type": "Диаграмма типа",
         "mode_overview": "Обзор (все элементы)",
         "element": "Элемент",
-        "type": "Сложный тип",
         "depth": "Глубина раскрытия",
         "tab_diagram": "Диаграмма",
         "tab_annotations": "Аннотации",
         "no_files": "Загрузите XSD-файлы или укажите URL на GitHub.",
         "no_elements": "В этой схеме нет элементов.",
-        "no_types": "В этой схеме нет сложных типов.",
         "annotation_header": "Аннотации для: {name}",
         "schema_annotation": "Описание схемы",
         "element_annotation": "Аннотация элемента",
@@ -99,12 +96,14 @@ LABELS = {
         "no_annotation": "Аннотация отсутствует.",
         "error_fetch": "Ошибка загрузки: {err}",
         "error_render": "Ошибка отрисовки: {err}",
-        "render": "Построить",
         "generate_doc": "Сгенерировать HTML-описание",
         "generating_doc": "Генерация описания...",
         "download_doc": "Скачать HTML",
         "doc_depth": "Глубина описания",
         "back_to_diagram": "Назад к диаграммам",
+        "quick_elements": "Элементы (клик для отображения):",
+        "show_pills": "Показывать элементы",
+        "save_png": "Сохранить как PNG",
     },
 }
 
@@ -136,6 +135,22 @@ def _list_xsd_files() -> list[str]:
     return sorted(f for f in os.listdir(tmp) if f.lower().endswith(".xsd"))
 
 
+def _auto_set_pills_flag():
+    """Auto-enable pills if all schemas have <10 elements, else disable."""
+    tmp = _get_temp_dir()
+    xsd_files = _list_xsd_files()
+    if not xsd_files:
+        return
+    max_elems = 0
+    for fname in xsd_files:
+        try:
+            s, _ = parse_schema_with_imports(os.path.join(tmp, fname))
+            max_elems = max(max_elems, len(s.elements))
+        except Exception:
+            pass
+    st.session_state.show_pills = max_elems < 10
+
+
 # Bundled demo schema — rich annotations, good for demonstration
 _DEMO_SCHEMA = Path(__file__).parent / "examples" / "purchase.xsd"
 
@@ -149,15 +164,13 @@ def _load_demo_file():
             tmp = _get_temp_dir()
             shutil.copy(str(_DEMO_SCHEMA), os.path.join(tmp, "purchase.xsd"))
             st.session_state.demo_loaded = True
+            _auto_set_pills_flag()
     except Exception:
         pass
 
 
 def _collect_annotations(schema_path: str, name: str, mode: str, registry: SchemaRegistry) -> list[tuple[str, str]]:
-    """Collect annotations for display in the Annotations tab.
-
-    Returns list of (label, text) pairs.
-    """
+    """Collect annotations for display in the Annotations tab."""
     annotations = []
     try:
         schema, _ = parse_schema_with_imports(schema_path)
@@ -173,10 +186,6 @@ def _collect_annotations(schema_path: str, name: str, mode: str, registry: Schem
             annotations.append((f"Element: {name}", elem.annotation.documentation))
         if elem and elem.inline_type and elem.inline_type.annotation and elem.inline_type.annotation.documentation:
             annotations.append((f"Type of {name}", elem.inline_type.annotation.documentation))
-    elif schema and mode == "type":
-        ct = schema.find_complex_type(name)
-        if ct and ct.annotation and ct.annotation.documentation:
-            annotations.append((f"Type: {name}", ct.annotation.documentation))
 
     return annotations
 
@@ -192,11 +201,9 @@ def main():
     # --- Hide Streamlit chrome but keep sidebar toggle ---
     st.markdown(
         """<style>
-        /* Hide the toolbar (Deploy button, app menu) */
         [data-testid="stToolbar"] { display: none !important; }
         #MainMenu { display: none !important; }
         footer { display: none !important; }
-        /* Make header transparent and minimal — sidebar collapse button stays */
         header[data-testid="stHeader"] {
             background: transparent !important;
         }
@@ -207,21 +214,28 @@ def main():
         section[data-testid="stSidebar"] > div {
             padding-top: 1rem !important;
         }
-        /* Make iframe containers fill available height */
         [data-testid="stMain"] iframe {
             min-height: calc(100vh - 10rem) !important;
         }
         </style>""",
         unsafe_allow_html=True,
     )
+    # Clear sidebar collapsed flag from localStorage on every load
+    st.components.v1.html(
+        """<script>
+        Object.keys(window.parent.localStorage).forEach(function(key) {
+            if (key.startsWith('stSidebarCollapsed')) {
+                window.parent.localStorage.removeItem(key);
+            }
+        });
+        </script>""",
+        height=0,
+    )
 
     # --- Language toggle ---
     lang_ru = st.sidebar.toggle("🇷🇺 Русский", value=False, key="lang_ru")
     lang = "ru" if lang_ru else "en"
     L = LABELS[lang]
-
-    st.title(L["title"])
-    st.caption(L["subtitle"])
 
     # --- Load demo file on first visit ---
     _load_demo_file()
@@ -244,7 +258,6 @@ def main():
             with st.spinner(L["fetching"]):
                 try:
                     tmp = _get_temp_dir()
-                    # Clean existing files
                     for f in os.listdir(tmp):
                         fp = os.path.join(tmp, f)
                         if os.path.isfile(fp):
@@ -254,6 +267,7 @@ def main():
                     files = fetch_xsd_files(github_url, tmp)
                     if files:
                         st.sidebar.success(L["fetched_ok"].format(n=len(files), files=", ".join(files)))
+                        _auto_set_pills_flag()
                     else:
                         st.sidebar.warning(L["fetched_none"])
                 except Exception as e:
@@ -268,7 +282,6 @@ def main():
         )
         if uploaded:
             tmp = _get_temp_dir()
-            # Clean existing files
             for f in os.listdir(tmp):
                 fp = os.path.join(tmp, f)
                 if os.path.isfile(fp):
@@ -279,6 +292,7 @@ def main():
                 file_path = os.path.join(tmp, f.name)
                 with open(file_path, "wb") as out:
                     out.write(f.getbuffer())
+            _auto_set_pills_flag()
 
     # --- Schema file selector ---
     xsd_files = _list_xsd_files()
@@ -299,34 +313,33 @@ def main():
         st.error(L["error_render"].format(err=str(e)))
         return
 
+    # --- Apply pending quick-select (before widgets are rendered) ---
+    if "_pending_mode" in st.session_state:
+        st.session_state.viz_mode = st.session_state.pop("_pending_mode")
+    if "_pending_element" in st.session_state:
+        st.session_state.element_select = st.session_state.pop("_pending_element")
+
     # --- Visualization mode ---
-    mode_options = [L["mode_element"], L["mode_type"], L["mode_overview"]]
+    mode_options = [L["mode_element"], L["mode_overview"]]
     mode_label = st.sidebar.radio(L["viz_mode"], mode_options, key="viz_mode")
 
     if mode_label == L["mode_element"]:
         mode = "element"
-    elif mode_label == L["mode_type"]:
-        mode = "type"
     else:
         mode = "overview"
 
-    # --- Element / Type selector ---
+    # --- Element selector (sorted alphabetically) ---
     selected_name = None
 
     if mode == "element":
-        elem_names = [e.name for e in schema.elements]
+        elem_names = sorted(e.name for e in schema.elements)
         if not elem_names:
             st.warning(L["no_elements"])
             return
-        default_idx = elem_names.index("Purchase") if "Purchase" in elem_names else 0
-        selected_name = st.sidebar.selectbox(L["element"], elem_names, index=default_idx, key="element_select")
-
-    elif mode == "type":
-        type_names = [ct.name for ct in schema.complex_types]
-        if not type_names:
-            st.warning(L["no_types"])
-            return
-        selected_name = st.sidebar.selectbox(L["type"], type_names, key="type_select")
+        # Set default only if no value in session_state yet
+        if "element_select" not in st.session_state:
+            st.session_state.element_select = "Purchase" if "Purchase" in elem_names else elem_names[0]
+        selected_name = st.sidebar.selectbox(L["element"], elem_names, key="element_select")
 
     # --- Depth slider ---
     depth = 2
@@ -351,9 +364,78 @@ def main():
             except Exception as e:
                 st.sidebar.error(L["error_render"].format(err=str(e)))
 
+    # --- Pills toggle at bottom of sidebar ---
+    st.sidebar.divider()
+    if "show_pills" not in st.session_state:
+        st.session_state.show_pills = True
+    st.sidebar.checkbox(L["show_pills"], key="show_pills")
+
+    # --- Pre-render SVG for PNG button (needed before title row) ---
+    svg = None
+    in_doc_view = st.session_state.get("show_doc") and st.session_state.get("doc_html")
+    if not in_doc_view:
+        try:
+            if mode == "element":
+                svg = render_element_diagram(schema_path, selected_name, depth, registry=registry)
+            else:
+                svg = render_overview_diagram(schema_path, registry=registry)
+        except Exception:
+            svg = None
+
+    # --- Title row with optional pills and PNG save button ---
+    elem_names_all = sorted(e.name for e in schema.elements)
+    show_pills = st.session_state.get("show_pills", False)
+
+    if not in_doc_view and show_pills and elem_names_all:
+        col_title, col_pills, col_save = st.columns([3, 6, 1])
+        with col_title:
+            st.title(L["title"])
+        with col_pills:
+            picked_elem = st.pills(
+                L["quick_elements"],
+                elem_names_all,
+                default=selected_name if mode == "element" else None,
+                key="quick_elem_pills",
+            )
+            if picked_elem and picked_elem != st.session_state.get("_last_pill"):
+                st.session_state._last_pill = picked_elem
+                st.session_state._pending_mode = L["mode_element"]
+                st.session_state._pending_element = picked_elem
+                st.rerun()
+            st.session_state._last_pill = picked_elem
+        with col_save:
+            if svg:
+                png_name = (selected_name or selected_file.replace(".xsd", "")) + ".png"
+                png_data = cairosvg.svg2png(bytestring=svg.encode("utf-8"), scale=2)
+                st.download_button(
+                    label=":floppy_disk:",
+                    data=png_data,
+                    file_name=png_name,
+                    mime="image/png",
+                    key="save_png_btn",
+                    help=L["save_png"],
+                )
+    elif not in_doc_view:
+        col_title, col_save = st.columns([20, 1])
+        with col_title:
+            st.title(L["title"])
+        with col_save:
+            if svg:
+                png_name = (selected_name or selected_file.replace(".xsd", "")) + ".png"
+                png_data = cairosvg.svg2png(bytestring=svg.encode("utf-8"), scale=2)
+                st.download_button(
+                    label=":floppy_disk:",
+                    data=png_data,
+                    file_name=png_name,
+                    mime="image/png",
+                    key="save_png_btn",
+                    help=L["save_png"],
+                )
+    else:
+        st.title(L["title"])
+
     # --- Render: documentation view or diagram view ---
     if st.session_state.get("show_doc") and st.session_state.get("doc_html"):
-        # Documentation view — replaces diagrams
         col_back, col_download, col_spacer = st.columns([1, 1, 3])
         with col_back:
             if st.button(L["back_to_diagram"], key="back_to_diagram_btn", use_container_width=True):
@@ -370,27 +452,18 @@ def main():
             )
         st.components.v1.html(st.session_state.doc_html, height=0, scrolling=True)
     else:
-        # Diagram view
         tab_diagram, tab_annotations = st.tabs([L["tab_diagram"], L["tab_annotations"]])
 
         with tab_diagram:
-            try:
-                if mode == "element":
-                    svg = render_element_diagram(schema_path, selected_name, depth, registry=registry)
-                elif mode == "type":
-                    svg = render_type_diagram(schema_path, selected_name, depth, registry=registry)
-                else:
-                    svg = render_overview_diagram(schema_path, registry=registry)
-
+            if svg:
                 diagram_html = f"""
                 <div style="overflow: auto; background: white; border: 1px solid #ddd; border-radius: 4px; padding: 8px;">
                     {svg}
                 </div>
                 """
                 st.components.v1.html(diagram_html, height=0, scrolling=True)
-
-            except Exception as e:
-                st.error(L["error_render"].format(err=str(e)))
+            else:
+                st.error(L["error_render"].format(err="No diagram available"))
 
         with tab_annotations:
             ann_name = selected_name or selected_file
