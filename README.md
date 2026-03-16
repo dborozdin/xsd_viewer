@@ -15,6 +15,35 @@ Online visualization of XSD schemas in [Altova XMLSpy](https://www.altova.com/xm
 - **Annotations** — displayed under elements on diagrams and in a separate tab
 - **Depth control** — expand 0 to 5 levels of child elements
 - **Bilingual UI** — English / Russian
+- **HTML documentation generator** — auto-discovers elements and annotations, supports multilingual output via `xml:lang`
+
+## HTML Documentation
+
+Generate standalone HTML documentation for any XSD schema:
+
+```bash
+python generate_doc.py schema.xsd -o docs/schema.html
+```
+
+If your XSD uses `xml:lang` on `xs:documentation` elements, you can select the output language:
+
+```bash
+python generate_doc.py schema.xsd --lang ru
+```
+
+```xml
+<!-- Example: multilingual annotations in XSD -->
+<xs:element name="Purchase">
+  <xs:annotation>
+    <xs:documentation xml:lang="en">A purchase transaction.</xs:documentation>
+    <xs:documentation xml:lang="ru">Транзакция покупки.</xs:documentation>
+  </xs:annotation>
+</xs:element>
+```
+
+The language toggle in the Streamlit UI also switches diagram annotations and generated docs to the selected language.
+
+Full options: `python generate_doc.py --help`
 
 ## Try it
 
@@ -60,6 +89,16 @@ svg = render_element_diagram("schema.xsd", "MyElement", depth=2)
 - **Аннотации** — отображаются на диаграммах и в отдельной вкладке
 - **Глубина раскрытия** — от 0 до 5 уровней
 - **Двуязычный интерфейс** — English / Русский
+- **Генерация HTML-документации** — автоматическое обнаружение элементов и аннотаций, поддержка многоязычного вывода через `xml:lang`
+
+## Генерация HTML-документации
+
+```bash
+python generate_doc.py schema.xsd -o docs/schema.html
+python generate_doc.py schema.xsd --lang ru   # вывод на русском
+```
+
+Если в XSD используются теги `xml:lang` в `xs:documentation`, генератор выберет аннотации на указанном языке. Переключатель языка в интерфейсе Streamlit также влияет на язык аннотаций в диаграммах и генерируемой документации.
 
 ## Запуск локально
 

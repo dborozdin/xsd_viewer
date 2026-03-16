@@ -387,10 +387,9 @@ class XsdParser:
         ann = XsdAnnotation()
         for child in ann_el:
             if self._local_tag(child) == "documentation":
-                text = child.text or ""
-                ann.documentation = text.strip()
-                ann.lang = child.get("{http://www.w3.org/XML/1998/namespace}lang", "")
-                break
+                text = (child.text or "").strip()
+                lang = child.get("{http://www.w3.org/XML/1998/namespace}lang", "")
+                ann.add_doc(text, lang)
         return ann
 
     # --- Utilities ---

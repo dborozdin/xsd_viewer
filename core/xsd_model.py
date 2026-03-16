@@ -22,11 +22,73 @@ class AttributeUse(str, Enum):
     PROHIBITED = "prohibited"
 
 
-@dataclass
 class XsdAnnotation:
-    """xs:annotation/xs:documentation."""
-    documentation: str = ""
-    lang: str = ""
+    """xs:annotation/xs:documentation with multilingual support.
+
+    Stores documentation strings keyed by xml:lang.
+    Backward-compatible: ``annotation.documentation`` still returns a str.
+    """
+
+    __slots__ = ("_docs",)
+
+    def __init__(self) -> None:
+        self._docs: dict[str, str] = {}
+
+    # --- public API ---
+
+    def add_doc(self, text: str, lang: str = "") -> None:
+        """Add documentation for a specific language."""
+        if text:
+            self._docs[lang] = text
+
+    def get_doc(self, preferred_lang: str = "") -> str:
+        """Get documentation with fallback: preferred → 'en' → '' → first."""
+        if not self._docs:
+            return ""
+        if preferred_lang and preferred_lang in self._docs:
+            return self._docs[preferred_lang]
+        if "en" in self._docs:
+            return self._docs["en"]
+        if "" in self._docs:
+            return self._docs[""]
+        return next(iter(self._docs.values()))
+
+    def has_content(self) -> bool:
+        return bool(self._docs)
+
+    @property
+    def available_langs(self) -> list[str]:
+        return list(self._docs.keys())
+
+    # --- backward-compatible properties ---
+
+    @property
+    def documentation(self) -> str:
+        return self.get_doc()
+
+    @documentation.setter
+    def documentation(self, value: str) -> None:
+        if value:
+            self._docs[""] = value
+        elif "" in self._docs:
+            del self._docs[""]
+
+    @property
+    def lang(self) -> str:
+        if self._docs:
+            return next(iter(self._docs))
+        return ""
+
+    @lang.setter
+    def lang(self, value: str) -> None:
+        if "" in self._docs and value:
+            self._docs[value] = self._docs.pop("")
+
+    def __bool__(self) -> bool:
+        return self.has_content()
+
+    def __repr__(self) -> str:
+        return f"XsdAnnotation({self._docs!r})"
 
 
 @dataclass

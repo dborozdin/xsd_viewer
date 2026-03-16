@@ -136,6 +136,7 @@ def build_layout_tree(
     depth: int = 2,
     _visited: Optional[set] = None,
     diagram_namespace: str = "",
+    lang: str = "",
 ) -> LayoutNode:
     """Build layout tree from XsdElement.
 
@@ -179,14 +180,14 @@ def build_layout_tree(
     has_children = bool(compositors) or bool(attrs)
 
     ann_text = ""
-    if element.annotation and element.annotation.documentation:
-        ann_text = element.annotation.documentation
-    elif resolved_target and resolved_target.annotation and resolved_target.annotation.documentation:
-        ann_text = resolved_target.annotation.documentation
-    elif resolved_ct and resolved_ct.annotation and resolved_ct.annotation.documentation:
-        ann_text = resolved_ct.annotation.documentation
-    elif element.inline_type and element.inline_type.annotation and element.inline_type.annotation.documentation:
-        ann_text = element.inline_type.annotation.documentation
+    if element.annotation and element.annotation.has_content():
+        ann_text = element.annotation.get_doc(lang)
+    elif resolved_target and resolved_target.annotation and resolved_target.annotation.has_content():
+        ann_text = resolved_target.annotation.get_doc(lang)
+    elif resolved_ct and resolved_ct.annotation and resolved_ct.annotation.has_content():
+        ann_text = resolved_ct.annotation.get_doc(lang)
+    elif element.inline_type and element.inline_type.annotation and element.inline_type.annotation.has_content():
+        ann_text = element.inline_type.annotation.get_doc(lang)
 
     display_name = _build_display_name(element, diagram_namespace, registry)
 
@@ -222,7 +223,7 @@ def build_layout_tree(
         return node
 
     for comp in compositors:
-        comp_node = _build_compositor_node(comp, schema, registry, depth - 1, _visited, diagram_namespace)
+        comp_node = _build_compositor_node(comp, schema, registry, depth - 1, _visited, diagram_namespace, lang=lang)
         node.children.append(comp_node)
 
     if attrs:
@@ -254,6 +255,7 @@ def _build_compositor_node(
     depth: int,
     visited: set,
     diagram_namespace: str = "",
+    lang: str = "",
 ) -> LayoutNode:
     comp_node = LayoutNode(
         kind="compositor",
@@ -265,11 +267,11 @@ def _build_compositor_node(
     comp_node.height = COMPOSITOR_HEIGHT
 
     for elem in compositor.elements:
-        child = build_layout_tree(elem, schema, registry, depth, visited, diagram_namespace=diagram_namespace)
+        child = build_layout_tree(elem, schema, registry, depth, visited, diagram_namespace=diagram_namespace, lang=lang)
         comp_node.children.append(child)
 
     for sub_comp in compositor.compositors:
-        sub_node = _build_compositor_node(sub_comp, schema, registry, depth, visited, diagram_namespace)
+        sub_node = _build_compositor_node(sub_comp, schema, registry, depth, visited, diagram_namespace, lang=lang)
         comp_node.children.append(sub_node)
 
     _compute_subtree_height(comp_node)
@@ -448,6 +450,7 @@ def build_substitution_tree(
     registry,
     depth: int = 1,
     diagram_namespace: str = "",
+    lang: str = "",
 ) -> list[SubstitutionEntry]:
     if not registry:
         return []
@@ -456,10 +459,10 @@ def build_substitution_tree(
     for member in direct:
         member_node = build_layout_tree(
             member, schema, registry, depth=depth,
-            diagram_namespace=diagram_namespace,
+            diagram_namespace=diagram_namespace, lang=lang,
         )
         sub_entries = build_substitution_tree(
-            member.name, member.namespace, schema, registry, depth, diagram_namespace,
+            member.name, member.namespace, schema, registry, depth, diagram_namespace, lang=lang,
         )
         entries.append(SubstitutionEntry(
             element=member, node=member_node,

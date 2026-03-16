@@ -55,6 +55,7 @@ def render_element_diagram(
     depth: int = 2,
     *,
     registry: Optional[SchemaRegistry] = None,
+    lang: str = "",
 ) -> str:
     schema, reg = _load_schema(schema_path, registry)
 
@@ -69,7 +70,7 @@ def render_element_diagram(
         return _error_svg(f"Element '{element_name}' not found")
 
     root_node = build_layout_tree(element, schema, reg, depth=depth,
-                                    diagram_namespace=element.namespace)
+                                    diagram_namespace=element.namespace, lang=lang)
     assign_positions(root_node, x=PADDING, y=PADDING)
 
     total_w, total_h = compute_total_bounds(root_node)
@@ -89,6 +90,7 @@ def render_overview_diagram(
     schema_path: str,
     *,
     registry: Optional[SchemaRegistry] = None,
+    lang: str = "",
 ) -> str:
     schema, reg = _load_schema(schema_path, registry)
 
@@ -98,7 +100,7 @@ def render_overview_diagram(
 
     nodes: list[LayoutNode] = []
     for elem in elements:
-        node = build_layout_tree(elem, schema, reg, depth=0)
+        node = build_layout_tree(elem, schema, reg, depth=0, lang=lang)
         nodes.append(node)
 
     y = PADDING
@@ -128,6 +130,7 @@ def render_type_diagram(
     depth: int = 2,
     *,
     registry: Optional[SchemaRegistry] = None,
+    lang: str = "",
 ) -> str:
     schema, reg = _load_schema(schema_path, registry)
 
@@ -157,13 +160,13 @@ def render_type_diagram(
     diagram_ns = schema.target_namespace
 
     root_node = build_layout_tree(virtual_elem, schema, reg, depth=depth,
-                                    diagram_namespace=diagram_ns)
+                                    diagram_namespace=diagram_ns, lang=lang)
 
     subst_entries: list[SubstitutionEntry] = []
     if ct.is_abstract and reg:
         subst_entries = build_substitution_tree(
             type_name, schema.target_namespace, schema, reg,
-            depth=depth, diagram_namespace=diagram_ns,
+            depth=depth, diagram_namespace=diagram_ns, lang=lang,
         )
 
     subst_flat = flatten_substitution_entries(subst_entries)

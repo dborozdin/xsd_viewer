@@ -173,7 +173,7 @@ def _load_demo_file():
         pass
 
 
-def _collect_annotations(schema_path: str, name: str, mode: str, registry: SchemaRegistry) -> list[tuple[str, str]]:
+def _collect_annotations(schema_path: str, name: str, mode: str, registry: SchemaRegistry, lang: str = "") -> list[tuple[str, str]]:
     """Collect annotations for display in the Annotations tab."""
     annotations = []
     try:
@@ -181,15 +181,15 @@ def _collect_annotations(schema_path: str, name: str, mode: str, registry: Schem
     except Exception:
         schema = None
 
-    if schema and schema.annotation and schema.annotation.documentation:
-        annotations.append(("Schema", schema.annotation.documentation))
+    if schema and schema.annotation and schema.annotation.has_content():
+        annotations.append(("Schema", schema.annotation.get_doc(lang)))
 
     if schema and mode == "element":
         elem = schema.find_element(name)
-        if elem and elem.annotation and elem.annotation.documentation:
-            annotations.append((f"Element: {name}", elem.annotation.documentation))
-        if elem and elem.inline_type and elem.inline_type.annotation and elem.inline_type.annotation.documentation:
-            annotations.append((f"Type of {name}", elem.inline_type.annotation.documentation))
+        if elem and elem.annotation and elem.annotation.has_content():
+            annotations.append((f"Element: {name}", elem.annotation.get_doc(lang)))
+        if elem and elem.inline_type and elem.inline_type.annotation and elem.inline_type.annotation.has_content():
+            annotations.append((f"Type of {name}", elem.inline_type.annotation.get_doc(lang)))
 
     return annotations
 
@@ -357,7 +357,7 @@ def main():
     if st.sidebar.button(L["generate_doc"], key="gen_doc_btn", use_container_width=True):
         with st.spinner(L["generating_doc"]):
             try:
-                html_content = generate_html_for_schema(schema_path, depth=doc_depth)
+                html_content = generate_html_for_schema(schema_path, depth=doc_depth, lang=lang)
                 doc_filename = Path(selected_file).stem + "_doc.html"
                 doc_path = os.path.join(_get_temp_dir(), doc_filename)
                 with open(doc_path, "w", encoding="utf-8") as f:
@@ -380,9 +380,9 @@ def main():
     if not in_doc_view:
         try:
             if mode == "element":
-                svg = render_element_diagram(schema_path, selected_name, depth, registry=registry)
+                svg = render_element_diagram(schema_path, selected_name, depth, registry=registry, lang=lang)
             else:
-                svg = render_overview_diagram(schema_path, registry=registry)
+                svg = render_overview_diagram(schema_path, registry=registry, lang=lang)
         except Exception:
             svg = None
 
@@ -483,7 +483,7 @@ def main():
             ann_name = selected_name or selected_file
             st.subheader(L["annotation_header"].format(name=ann_name))
 
-            annotations = _collect_annotations(schema_path, ann_name, mode, registry)
+            annotations = _collect_annotations(schema_path, ann_name, mode, registry, lang=lang)
 
             if annotations:
                 for label, text in annotations:
