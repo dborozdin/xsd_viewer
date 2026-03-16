@@ -123,6 +123,27 @@ def _list_xsd_files() -> list[str]:
     return sorted(f for f in os.listdir(tmp) if f.lower().endswith(".xsd"))
 
 
+# Demo file URL — downloaded on first session load
+_DEMO_URL = "https://raw.githubusercontent.com/dborozdin/word_to_s1000d/main/xsd/proced.xsd"
+
+
+def _load_demo_file():
+    """Download demo XSD file on first session load."""
+    if st.session_state.get("demo_loaded"):
+        return
+    try:
+        import requests
+        resp = requests.get(_DEMO_URL, timeout=15)
+        resp.raise_for_status()
+        tmp = _get_temp_dir()
+        file_path = os.path.join(tmp, "proced.xsd")
+        with open(file_path, "wb") as f:
+            f.write(resp.content)
+        st.session_state.demo_loaded = True
+    except Exception:
+        pass  # Silently skip if network unavailable
+
+
 def _collect_annotations(schema_path: str, name: str, mode: str, registry: SchemaRegistry) -> list[tuple[str, str]]:
     """Collect annotations for display in the Annotations tab.
 
@@ -166,10 +187,13 @@ def main():
     st.title(L["title"])
     st.caption(L["subtitle"])
 
+    # --- Load demo file on first visit ---
+    _load_demo_file()
+
     # --- Sidebar: data source ---
     source = st.sidebar.radio(
         L["source"],
-        [L["source_github"], L["source_upload"]],
+        [L["source_upload"], L["source_github"]],
         key="source_radio",
     )
 
@@ -258,7 +282,8 @@ def main():
         if not elem_names:
             st.warning(L["no_elements"])
             return
-        selected_name = st.sidebar.selectbox(L["element"], elem_names, key="element_select")
+        default_idx = elem_names.index("content") if "content" in elem_names else 0
+        selected_name = st.sidebar.selectbox(L["element"], elem_names, index=default_idx, key="element_select")
 
     elif mode == "type":
         type_names = [ct.name for ct in schema.complex_types]

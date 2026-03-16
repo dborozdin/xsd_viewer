@@ -2,6 +2,8 @@
 
 Online visualization of XSD schemas in [Altova XMLSpy](https://www.altova.com/xmlspy-xml-editor) notation.
 
+![XSD Schema Viewer — element diagram](screenshot.png)
+
 ## Features
 
 - **GitHub URL import** — paste a link to a GitHub folder with `.xsd` files and visualize them instantly
@@ -47,6 +49,8 @@ svg = render_element_diagram("schema.xsd", "MyElement", depth=2)
 # Просмотр XSD-схем
 
 Онлайн-визуализация XSD-схем в нотации [Altova XMLSpy](https://www.altova.com/xmlspy-xml-editor).
+
+![Просмотр XSD-схем — диаграмма элемента](screenshot.png)
 
 ## Возможности
 

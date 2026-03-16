@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip list:*)",
+      "Bash(echo \"No SVG->PNG converter found\")"
+    ]
+  }
+}
