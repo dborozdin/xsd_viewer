@@ -100,7 +100,7 @@ class XsdAttribute:
     fixed: Optional[str] = None
     annotation: Optional[XsdAnnotation] = None
 
-    def to_dict(self) -> dict:
+    def to_dict(self, lang: str = "") -> dict:
         d = {
             "name": self.name,
             "type_ref": self.type_ref,
@@ -111,7 +111,7 @@ class XsdAttribute:
         if self.fixed is not None:
             d["fixed"] = self.fixed
         if self.annotation:
-            d["annotation"] = self.annotation.documentation
+            d["annotation"] = self.annotation.get_doc(lang)
         return d
 
 
@@ -160,7 +160,7 @@ class XsdElement:
     def has_children(self) -> bool:
         return bool(self.children) or self.inline_type is not None
 
-    def to_dict(self) -> dict:
+    def to_dict(self, lang: str = "") -> dict:
         d = {
             "name": self.name,
             "namespace": self.namespace,
@@ -175,13 +175,13 @@ class XsdElement:
             "multiplicity": self.multiplicity_label,
         }
         if self.annotation:
-            d["annotation"] = self.annotation.documentation
+            d["annotation"] = self.annotation.get_doc(lang)
         if self.attributes:
-            d["attributes"] = [a.to_dict() for a in self.attributes]
+            d["attributes"] = [a.to_dict(lang=lang) for a in self.attributes]
         if self.children:
-            d["children"] = [c.to_dict() for c in self.children]
+            d["children"] = [c.to_dict(lang=lang) for c in self.children]
         if self.inline_type:
-            d["inline_type"] = self.inline_type.to_dict()
+            d["inline_type"] = self.inline_type.to_dict(lang=lang)
         return d
 
 
@@ -214,7 +214,7 @@ class XsdCompositor:
         result.extend(self.compositors)
         return result
 
-    def to_dict(self) -> dict:
+    def to_dict(self, lang: str = "") -> dict:
         d = {
             "kind": self.kind.value,
             "min_occurs": self.min_occurs,
@@ -222,9 +222,9 @@ class XsdCompositor:
             "multiplicity": self.multiplicity_label,
         }
         if self.elements:
-            d["elements"] = [e.to_dict() for e in self.elements]
+            d["elements"] = [e.to_dict(lang=lang) for e in self.elements]
         if self.compositors:
-            d["compositors"] = [c.to_dict() for c in self.compositors]
+            d["compositors"] = [c.to_dict(lang=lang) for c in self.compositors]
         return d
 
 
@@ -240,7 +240,7 @@ class XsdComplexType:
     content: Optional[XsdCompositor] = None
     attributes: list[XsdAttribute] = field(default_factory=list)
 
-    def to_dict(self) -> dict:
+    def to_dict(self, lang: str = "") -> dict:
         d = {
             "name": self.name,
             "namespace": self.namespace,
@@ -250,11 +250,11 @@ class XsdComplexType:
             d["base_type"] = self.base_type
             d["base_namespace"] = self.base_namespace
         if self.annotation:
-            d["annotation"] = self.annotation.documentation
+            d["annotation"] = self.annotation.get_doc(lang)
         if self.content:
-            d["content"] = self.content.to_dict()
+            d["content"] = self.content.to_dict(lang=lang)
         if self.attributes:
-            d["attributes"] = [a.to_dict() for a in self.attributes]
+            d["attributes"] = [a.to_dict(lang=lang) for a in self.attributes]
         return d
 
 
@@ -266,7 +266,7 @@ class XsdSimpleType:
     enumerations: list[str] = field(default_factory=list)
     annotation: Optional[XsdAnnotation] = None
 
-    def to_dict(self) -> dict:
+    def to_dict(self, lang: str = "") -> dict:
         d = {
             "name": self.name,
             "namespace": self.namespace,
@@ -275,7 +275,7 @@ class XsdSimpleType:
         if self.enumerations:
             d["enumerations"] = self.enumerations
         if self.annotation:
-            d["annotation"] = self.annotation.documentation
+            d["annotation"] = self.annotation.get_doc(lang)
         return d
 
 
@@ -309,20 +309,20 @@ class XsdSchema:
                 return el
         return None
 
-    def to_dict(self) -> dict:
+    def to_dict(self, lang: str = "") -> dict:
         d = {
             "target_namespace": self.target_namespace,
             "schema_location": self.schema_location,
         }
         if self.annotation:
-            d["annotation"] = self.annotation.documentation
+            d["annotation"] = self.annotation.get_doc(lang)
         if self.imports:
             d["imports"] = [{"namespace": i.namespace, "schema_location": i.schema_location}
                            for i in self.imports]
         if self.elements:
-            d["elements"] = [e.to_dict() for e in self.elements]
+            d["elements"] = [e.to_dict(lang=lang) for e in self.elements]
         if self.complex_types:
-            d["complex_types"] = [ct.to_dict() for ct in self.complex_types]
+            d["complex_types"] = [ct.to_dict(lang=lang) for ct in self.complex_types]
         if self.simple_types:
-            d["simple_types"] = [st.to_dict() for st in self.simple_types]
+            d["simple_types"] = [st.to_dict(lang=lang) for st in self.simple_types]
         return d
