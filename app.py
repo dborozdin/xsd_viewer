@@ -17,7 +17,11 @@ from core.svg_renderer import (
     render_element_diagram,
     render_overview_diagram,
 )
-import cairosvg
+try:
+    import cairosvg
+    _HAS_CAIROSVG = True
+except (ImportError, OSError):
+    _HAS_CAIROSVG = False
 
 from generate_doc import generate_html_for_schema
 from github_fetcher import fetch_xsd_files, parse_github_url
@@ -386,8 +390,14 @@ def main():
     elem_names_all = sorted(e.name for e in schema.elements)
     show_pills = st.session_state.get("show_pills", False)
 
+    can_save_png = _HAS_CAIROSVG and svg
+
     if not in_doc_view and show_pills and elem_names_all:
-        col_title, col_pills, col_save = st.columns([3, 6, 1])
+        if can_save_png:
+            col_title, col_pills, col_save = st.columns([3, 6, 1])
+        else:
+            col_title, col_pills = st.columns([3, 7])
+            col_save = None
         with col_title:
             st.title(L["title"])
         with col_pills:
@@ -403,8 +413,8 @@ def main():
                 st.session_state._pending_element = picked_elem
                 st.rerun()
             st.session_state._last_pill = picked_elem
-        with col_save:
-            if svg:
+        if col_save and can_save_png:
+            with col_save:
                 png_name = (selected_name or selected_file.replace(".xsd", "")) + ".png"
                 png_data = cairosvg.svg2png(bytestring=svg.encode("utf-8"), scale=2)
                 st.download_button(
@@ -416,11 +426,15 @@ def main():
                     help=L["save_png"],
                 )
     elif not in_doc_view:
-        col_title, col_save = st.columns([20, 1])
+        if can_save_png:
+            col_title, col_save = st.columns([20, 1])
+        else:
+            col_title = st.container()
+            col_save = None
         with col_title:
             st.title(L["title"])
-        with col_save:
-            if svg:
+        if col_save and can_save_png:
+            with col_save:
                 png_name = (selected_name or selected_file.replace(".xsd", "")) + ".png"
                 png_data = cairosvg.svg2png(bytestring=svg.encode("utf-8"), scale=2)
                 st.download_button(
