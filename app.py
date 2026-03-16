@@ -6,7 +6,9 @@ Supports loading from GitHub URLs or uploading local files.
 from __future__ import annotations
 
 import os
+import shutil
 import tempfile
+from pathlib import Path
 
 import streamlit as st
 
@@ -16,6 +18,7 @@ from core.svg_renderer import (
     render_overview_diagram,
     render_type_diagram,
 )
+from generate_doc import generate_html_for_schema
 from github_fetcher import fetch_xsd_files, parse_github_url
 
 # --- Bilingual labels ---
@@ -56,6 +59,11 @@ LABELS = {
         "error_fetch": "Error fetching files: {err}",
         "error_render": "Error rendering diagram: {err}",
         "render": "Render",
+        "generate_doc": "Generate HTML doc",
+        "generating_doc": "Generating documentation...",
+        "download_doc": "Download HTML",
+        "doc_depth": "Doc depth",
+        "back_to_diagram": "Back to diagrams",
     },
     "ru": {
         "title": "Просмотр XSD-схем",
@@ -92,6 +100,11 @@ LABELS = {
         "error_fetch": "Ошибка загрузки: {err}",
         "error_render": "Ошибка отрисовки: {err}",
         "render": "Построить",
+        "generate_doc": "Сгенерировать HTML-описание",
+        "generating_doc": "Генерация описания...",
+        "download_doc": "Скачать HTML",
+        "doc_depth": "Глубина описания",
+        "back_to_diagram": "Назад к диаграммам",
     },
 }
 
@@ -123,25 +136,21 @@ def _list_xsd_files() -> list[str]:
     return sorted(f for f in os.listdir(tmp) if f.lower().endswith(".xsd"))
 
 
-# Demo file URL — downloaded on first session load
-_DEMO_URL = "https://raw.githubusercontent.com/dborozdin/word_to_s1000d/main/xsd/proced.xsd"
+# Bundled demo schema — rich annotations, good for demonstration
+_DEMO_SCHEMA = Path(__file__).parent / "examples" / "purchase.xsd"
 
 
 def _load_demo_file():
-    """Download demo XSD file on first session load."""
+    """Copy bundled demo XSD file on first session load."""
     if st.session_state.get("demo_loaded"):
         return
     try:
-        import requests
-        resp = requests.get(_DEMO_URL, timeout=15)
-        resp.raise_for_status()
-        tmp = _get_temp_dir()
-        file_path = os.path.join(tmp, "proced.xsd")
-        with open(file_path, "wb") as f:
-            f.write(resp.content)
-        st.session_state.demo_loaded = True
+        if _DEMO_SCHEMA.exists():
+            tmp = _get_temp_dir()
+            shutil.copy(str(_DEMO_SCHEMA), os.path.join(tmp, "purchase.xsd"))
+            st.session_state.demo_loaded = True
     except Exception:
-        pass  # Silently skip if network unavailable
+        pass
 
 
 def _collect_annotations(schema_path: str, name: str, mode: str, registry: SchemaRegistry) -> list[tuple[str, str]]:
@@ -177,6 +186,33 @@ def main():
         page_title="XSD Schema Viewer",
         page_icon=":mag:",
         layout="wide",
+        initial_sidebar_state="expanded",
+    )
+
+    # --- Hide Streamlit chrome but keep sidebar toggle ---
+    st.markdown(
+        """<style>
+        /* Hide the toolbar (Deploy button, app menu) */
+        [data-testid="stToolbar"] { display: none !important; }
+        #MainMenu { display: none !important; }
+        footer { display: none !important; }
+        /* Make header transparent and minimal — sidebar collapse button stays */
+        header[data-testid="stHeader"] {
+            background: transparent !important;
+        }
+        section[data-testid="stMain"] > div.block-container {
+            padding-top: 1rem !important;
+            padding-bottom: 0 !important;
+        }
+        section[data-testid="stSidebar"] > div {
+            padding-top: 1rem !important;
+        }
+        /* Make iframe containers fill available height */
+        [data-testid="stMain"] iframe {
+            min-height: calc(100vh - 10rem) !important;
+        }
+        </style>""",
+        unsafe_allow_html=True,
     )
 
     # --- Language toggle ---
@@ -282,7 +318,7 @@ def main():
         if not elem_names:
             st.warning(L["no_elements"])
             return
-        default_idx = elem_names.index("content") if "content" in elem_names else 0
+        default_idx = elem_names.index("Purchase") if "Purchase" in elem_names else 0
         selected_name = st.sidebar.selectbox(L["element"], elem_names, index=default_idx, key="element_select")
 
     elif mode == "type":
@@ -297,42 +333,78 @@ def main():
     if mode != "overview":
         depth = st.sidebar.slider(L["depth"], 0, 5, 2, key="depth_slider")
 
-    # --- Render ---
-    tab_diagram, tab_annotations = st.tabs([L["tab_diagram"], L["tab_annotations"]])
+    # --- Documentation generation ---
+    st.sidebar.divider()
+    doc_depth = st.sidebar.slider(L["doc_depth"], 0, 5, 2, key="doc_depth_slider")
 
-    with tab_diagram:
-        try:
-            if mode == "element":
-                svg = render_element_diagram(schema_path, selected_name, depth, registry=registry)
-            elif mode == "type":
-                svg = render_type_diagram(schema_path, selected_name, depth, registry=registry)
+    if st.sidebar.button(L["generate_doc"], key="gen_doc_btn", use_container_width=True):
+        with st.spinner(L["generating_doc"]):
+            try:
+                html_content = generate_html_for_schema(schema_path, depth=doc_depth)
+                doc_filename = Path(selected_file).stem + "_doc.html"
+                doc_path = os.path.join(_get_temp_dir(), doc_filename)
+                with open(doc_path, "w", encoding="utf-8") as f:
+                    f.write(html_content)
+                st.session_state.doc_html = html_content
+                st.session_state.doc_filename = doc_filename
+                st.session_state.show_doc = True
+            except Exception as e:
+                st.sidebar.error(L["error_render"].format(err=str(e)))
+
+    # --- Render: documentation view or diagram view ---
+    if st.session_state.get("show_doc") and st.session_state.get("doc_html"):
+        # Documentation view — replaces diagrams
+        col_back, col_download, col_spacer = st.columns([1, 1, 3])
+        with col_back:
+            if st.button(L["back_to_diagram"], key="back_to_diagram_btn", use_container_width=True):
+                st.session_state.show_doc = False
+                st.rerun()
+        with col_download:
+            st.download_button(
+                L["download_doc"],
+                data=st.session_state.doc_html,
+                file_name=st.session_state.get("doc_filename", "schema_doc.html"),
+                mime="text/html",
+                key="download_doc_btn",
+                use_container_width=True,
+            )
+        st.components.v1.html(st.session_state.doc_html, height=0, scrolling=True)
+    else:
+        # Diagram view
+        tab_diagram, tab_annotations = st.tabs([L["tab_diagram"], L["tab_annotations"]])
+
+        with tab_diagram:
+            try:
+                if mode == "element":
+                    svg = render_element_diagram(schema_path, selected_name, depth, registry=registry)
+                elif mode == "type":
+                    svg = render_type_diagram(schema_path, selected_name, depth, registry=registry)
+                else:
+                    svg = render_overview_diagram(schema_path, registry=registry)
+
+                diagram_html = f"""
+                <div style="overflow: auto; background: white; border: 1px solid #ddd; border-radius: 4px; padding: 8px;">
+                    {svg}
+                </div>
+                """
+                st.components.v1.html(diagram_html, height=0, scrolling=True)
+
+            except Exception as e:
+                st.error(L["error_render"].format(err=str(e)))
+
+        with tab_annotations:
+            ann_name = selected_name or selected_file
+            st.subheader(L["annotation_header"].format(name=ann_name))
+
+            annotations = _collect_annotations(schema_path, ann_name, mode, registry)
+
+            if annotations:
+                for label, text in annotations:
+                    st.markdown(f"**{label}**")
+                    st.markdown(text)
+                    st.divider()
             else:
-                svg = render_overview_diagram(schema_path, registry=registry)
-
-            # Wrap SVG in scrollable HTML container
-            html = f"""
-            <div style="overflow: auto; background: white; border: 1px solid #ddd; border-radius: 4px; padding: 8px;">
-                {svg}
-            </div>
-            """
-            st.components.v1.html(html, height=600, scrolling=True)
-
-        except Exception as e:
-            st.error(L["error_render"].format(err=str(e)))
-
-    with tab_annotations:
-        ann_name = selected_name or selected_file
-        st.subheader(L["annotation_header"].format(name=ann_name))
-
-        annotations = _collect_annotations(schema_path, ann_name, mode, registry)
-
-        if annotations:
-            for label, text in annotations:
-                st.markdown(f"**{label}**")
-                st.markdown(text)
-                st.divider()
-        else:
-            st.info(L["no_annotation"])
+                st.info(L["no_annotation"])
 
 
 if __name__ == "__main__":

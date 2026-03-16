@@ -6,3 +6,7 @@ textColor = "#333333"
 
 [server]
 maxUploadSize = 10
+
+[client]
+defaultSidebarState = "expanded"
+

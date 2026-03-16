@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           targetNamespace="http://example.com/purchase"
+           xmlns:tns="http://example.com/purchase"
+           elementFormDefault="qualified">
+
+  <xs:annotation>
+    <xs:documentation>
+      Purchase Order schema.
+      Describes a purchase transaction where a Customer buys products at a Shop.
+    </xs:documentation>
+  </xs:annotation>
+
+  <!-- ===== Root element ===== -->
+
+  <xs:element name="Purchase" type="tns:PurchaseType">
+    <xs:annotation>
+      <xs:documentation>
+        A completed purchase transaction linking a customer,
+        a shop, and the purchased items.
+      </xs:documentation>
+    </xs:annotation>
+  </xs:element>
+
+  <xs:complexType name="PurchaseType">
+    <xs:annotation>
+      <xs:documentation>
+        Represents a single purchase event with all related details.
+      </xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="PurchaseId" type="xs:string">
+        <xs:annotation>
+          <xs:documentation>Unique identifier of the purchase.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="PurchaseDate" type="xs:dateTime">
+        <xs:annotation>
+          <xs:documentation>Date and time when the purchase was made.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Customer" type="tns:CustomerType"/>
+      <xs:element name="Shop" type="tns:ShopType"/>
+      <xs:element name="Items">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="Item" type="tns:ItemType" maxOccurs="unbounded">
+              <xs:annotation>
+                <xs:documentation>A product included in this purchase.</xs:documentation>
+              </xs:annotation>
+            </xs:element>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="TotalAmount" type="xs:decimal">
+        <xs:annotation>
+          <xs:documentation>Total cost of all items in the purchase.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+    <xs:attribute name="currency" type="tns:CurrencyCode" use="required">
+      <xs:annotation>
+        <xs:documentation>Currency used for all monetary values.</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+
+  <!-- ===== Customer ===== -->
+
+  <xs:element name="Customer" type="tns:CustomerType">
+    <xs:annotation>
+      <xs:documentation>The buyer who made the purchase.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+
+  <xs:complexType name="CustomerType">
+    <xs:annotation>
+      <xs:documentation>Information about the customer.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="CustomerId" type="xs:string">
+        <xs:annotation>
+          <xs:documentation>Unique customer identifier.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Name" type="xs:string">
+        <xs:annotation>
+          <xs:documentation>Full name of the customer.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Email" type="xs:string" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>Contact email address (optional).</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- ===== Shop ===== -->
+
+  <xs:element name="Shop" type="tns:ShopType">
+    <xs:annotation>
+      <xs:documentation>The retail location where the purchase was made.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+
+  <xs:complexType name="ShopType">
+    <xs:annotation>
+      <xs:documentation>Information about the shop.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="ShopId" type="xs:string">
+        <xs:annotation>
+          <xs:documentation>Unique shop identifier.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="ShopName" type="xs:string">
+        <xs:annotation>
+          <xs:documentation>Display name of the shop.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Address" type="xs:string">
+        <xs:annotation>
+          <xs:documentation>Physical address of the shop.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- ===== Item ===== -->
+
+  <xs:complexType name="ItemType">
+    <xs:annotation>
+      <xs:documentation>A single line item in the purchase.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="ProductName" type="xs:string">
+        <xs:annotation>
+          <xs:documentation>Name of the purchased product.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Price" type="xs:decimal">
+        <xs:annotation>
+          <xs:documentation>Unit price of the product.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Quantity" type="xs:positiveInteger">
+        <xs:annotation>
+          <xs:documentation>Number of units purchased.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- ===== Simple types ===== -->
+
+  <xs:simpleType name="CurrencyCode">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="USD"/>
+      <xs:enumeration value="EUR"/>
+      <xs:enumeration value="GBP"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+</xs:schema>

@@ -1,0 +1,67 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Streamlit: XSD Viewer",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "streamlit",
+            "args": [
+                "run",
+                "${workspaceFolder}/app.py",
+                "--server.port", "8501",
+                "--server.headless", "true"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Generate Doc (purchase.xsd)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/generate_doc.py",
+            "args": [
+                "examples/purchase.xsd",
+                "-o", "examples/purchase_doc.html"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Generate Doc (custom schema)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/generate_doc.py",
+            "args": [
+                "${input:schemaPath}",
+                "-o", "${input:outputPath}",
+                "-d", "${input:depth}"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        }
+    ],
+    "inputs": [
+        {
+            "id": "schemaPath",
+            "type": "promptString",
+            "description": "Path to XSD schema file",
+            "default": "examples/purchase.xsd"
+        },
+        {
+            "id": "outputPath",
+            "type": "promptString",
+            "description": "Output HTML file path",
+            "default": "schema_doc.html"
+        },
+        {
+            "id": "depth",
+            "type": "promptString",
+            "description": "Diagram expansion depth (0-5)",
+            "default": "2"
+        }
+    ]
+}
